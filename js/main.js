@@ -15,7 +15,7 @@ var fs = require('fs');
 //import { createWriteStream, supported, version } from 'streamsaver'
 
 // configure streamSaver to use mitm injection on same host
-streamSaver.mitm = '/mitm.html?version=' + streamSaver.version.full;
+streamSaver.mitm = './mitm.html?version=' + streamSaver.version.full;
 
 function urlToPromise(url) {
     return new Promise(function(resolve, reject) {
