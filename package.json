@@ -19,8 +19,8 @@
     "web-streams-polyfill": "^1.3.2"
   },
   "scripts": {
-    "build": "browserify js/main.js -g ascjsify > bundle.js",
-    "start": "budo js/main.js:bundle.js --live",
+    "build": "browserify js/main.js -g ascjsify > dist/bundle.js",
+    "start": "budo js/main.js:dist/bundle.js --live",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
