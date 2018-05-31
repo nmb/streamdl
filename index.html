@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<head>
+  <meta charset="UTF-8">
+  <title>Download to zip 2</title>
+  
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+
+  
+      <link rel="stylesheet" href="css/style.css">
+
+  
+</head>
+
+<body>
+
+  <div class="container">
+<h1>Multiple streaming CORS downloads</h1>
+<p>In this example, all URL:s pasted in the box below are downloaded as a zip file <i>example.zip</i> by client-side javascript, using <i>fetch</i> calls. 
+  <p> Note that: 
+    <div class="container">
+    <ul>
+     <li>all downloads are currently routed via https://cors-aywhere.herokuapp.com; with proper httpd configurations at data sources, this will not be necessary (<a href="https://enable-cors.org/">instructions</a>).</li>
+      <li> in this version, all downloads are streamed to disk without being stored in RAM.
+      </li>
+      <li> only compatible with Chrome
+      </li>
+      <li> no error handling implemented - if a file in the list cannot be downloaded, no zip file is generated.
+      </li>
+</ul>
+  </div>
+      </p>
+</p>
+<textarea rows="10" cols="100" id="input-box" placeholder="Paste list of URL:s here"></textarea>
+<br>
+<p>
+<button id="download-button">Click to start download</button>
+</p>
+</div>
+
+<script  src="bundle.js"></script>
+
+</body>
+
+</html>
