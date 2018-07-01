@@ -1,51 +1,16 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 (function (Buffer){
-'use strict';
-//var streamSaver = require('stream');
-//var streams = require("web-streams-polyfill");
-
-//import { ReadableStream } from "web-streams-polyfill";
 var streamSaver = require('streamsaver');
 var readablestream = require('web-streams-polyfill');
 var streamBrowserify = require('stream-browserify');
 var streamMD5 = require('stream-md5/md5');
-//import { JSZip } from 'jszip/dist/jszip.js';
 var JSZip = require('jszip');
 var JSZipUtils = require('jszip-utils');
 var fs = require('fs');
-//import * as JSZipUtils from 'jszip-utils';
-//import fetchStream from 'fetch-readablestream';
-//import { createWriteStream, supported, version } from 'streamsaver'
 
 // configure streamSaver to use mitm injection on same host
 streamSaver.mitm = './mitm.html?version=' + streamSaver.version.full;
 
-function urlToPromise(url) {
-    return new Promise(function(resolve, reject) {
-        JSZipUtils.getBinaryContent(url, function (err, data) {
-            if(err) {
-                reject(err);
-            } else {
-                resolve(data);
-            }
-        });
-    });
-}
-
-function handleErrors(response) {
-  if (!response.ok ) {
-    throw Error(response.statusText);
-  }
-  return response;
-}
-
-function fetchStatusHandler(response) {
-    if (response.status === 200) {
-          return response;
-            } else {
-                  throw new Error(response.statusText);
-                    }
-}
 var dlButton = document.getElementById('download-button');
 var urlinput = document.getElementById('input-box');
 console.log("Streamsaver support: " + streamSaver.supported);
@@ -54,13 +19,13 @@ function mkdl(str, z){
   let writeStream = streamSaver.createWriteStream('output.zip').getWriter();
   var lines = str.split('\n');
 
-      var readerMap = new Map();
+  var readerMap = new Map();
   for(var i = 0;i < lines.length;i++){
     // skip empty lines
     if(!lines[i].trim()) continue;
     let url = lines[i];
     // remove protocol, keep host in path
-    let filename = url.replace(/.*\/\//g, "");
+    var filename = url.replace(/.*\/\//g, "");
     try {
       new URL(url);
       console.log("Downloading " + url);
@@ -69,76 +34,64 @@ function mkdl(str, z){
       console.log("Skipping: " + url);
       continue;
     }
+    var reader
+    var state = streamMD5.init();
+    fetch(url)
+      .then(function(res) {
+        if (res.ok) {
+          return res;
+        } else {
+          throw new Error(res.statusText);
+        }
+      })
+      .then( function(res) {
+        readerMap.set(url,  new Promise((resolve, reject) => {resolve(res.body.getReader())}));
+      })
+      .catch(function(e) { 
+        console.log("error caught for " + url);
+        console.log(e);
+      });
+
     let rs = streamBrowserify.Readable()
-      let reader
-      let state = streamMD5.init();
-    readerMap.set(url, fetch(url).then(res => res.body.getReader()));
     rs._read = () => {
-      //let p = reader || (reader = fetch(url).then(res => res.body.getReader()).catch(error => console.log(error)));
-      //let p = readerMap.get(url) || (readerMap.set(url, fetch(url).then(res => res.body.getReader())));
+
       let p = readerMap.get(url);
-      p.then(reader => reader.read().then(({ value, done }) =>
+      if(!p){ rs.push(null);}
+      else {
+        p.then(reader => reader.read()
+          .then(({ value, done }) =>
             { if(done) {
-                         rs.push(null);
-                         console.log(streamMD5.finalize(state));
-                       }
-            else {
-              rs.push(new Buffer(value));
-              streamMD5.update(state, value);
+              rs.push(null);
+              console.log(streamMD5.finalize(state));
             }
-            }
-            )); //.catch(error => console.log(error) ))
-
+              else {
+                rs.push(new Buffer(value));
+                streamMD5.update(state, value);
+                console.log("pushing");
+              }
+            }))
+            .catch(error => console.log("error in read: " + error));
+      }
     }
-
-    //z.file(filename, urlToPromise("https://cors-anywhere.herokuapp.com/" + url), {binary:true});
     z.file(filename, rs);
+
   };
+
   z.generateInternalStream({type: 'uint8array', streamFiles: true})
     .on('data', data => writeStream.write(data))
     .on('error', err => console.error(err))
     .on('end', () => writeStream.close())
-  .resume()
+    .resume()
 }
 
 dlButton.addEventListener('click', function(){
   var zip = new JSZip();
-
-  /*
-zip.generateNodeStream({streamFiles:true})
-.pipe(fs.createWriteStream('out.zip'))
-.on('finish', function () {
-    // JSZip generates a readable stream with a "end" event,
-    // but is piped here in a writable stream which emits a "finish" event.
-    console.log("out.zip written.");
-});
-  */
   mkdl(urlinput.value, zip);
-
-/*  zip.generateAsync({type:"uint8array", streamFiles: true}, function updateCallback(metadata) {
-        var msg = "progression : " + metadata.percent.toFixed(2) + " %";
-        if(metadata.currentFile) {
-            msg += ", current file = " + metadata.currentFile;
-        }
-        console.log(msg);
-        //updatePercent(metadata.percent|0);
-    })
-    .then(function callback(blob) {
-
-        // see FileSaver.js
-        //saveAs(blob, "example.zip");
-
-        console.log("done !");
-    }, function (e) {
-        console.log(e);
-        console.log(e.description);
-    });
-*/
 }, false);
 
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"fs":4,"jszip":44,"jszip-utils":34,"stream-browserify":103,"stream-md5/md5":104,"streamsaver":105,"web-streams-polyfill":109}],2:[function(require,module,exports){
+},{"buffer":5,"fs":4,"jszip":44,"jszip-utils":34,"stream-browserify":103,"stream-md5/md5":104,"streamsaver":105,"web-streams-polyfill":108}],2:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -2867,28 +2820,24 @@ EventEmitter.prototype.removeAllListeners =
       return this;
     };
 
-function _listeners(target, type, unwrap) {
-  var events = target._events;
+EventEmitter.prototype.listeners = function listeners(type) {
+  var evlistener;
+  var ret;
+  var events = this._events;
 
   if (!events)
-    return [];
+    ret = [];
+  else {
+    evlistener = events[type];
+    if (!evlistener)
+      ret = [];
+    else if (typeof evlistener === 'function')
+      ret = [evlistener.listener || evlistener];
+    else
+      ret = unwrapListeners(evlistener);
+  }
 
-  var evlistener = events[type];
-  if (!evlistener)
-    return [];
-
-  if (typeof evlistener === 'function')
-    return unwrap ? [evlistener.listener || evlistener] : [evlistener];
-
-  return unwrap ? unwrapListeners(evlistener) : arrayClone(evlistener, evlistener.length);
-}
-
-EventEmitter.prototype.listeners = function listeners(type) {
-  return _listeners(this, type, true);
-};
-
-EventEmitter.prototype.rawListeners = function rawListeners(type) {
-  return _listeners(this, type, false);
+  return ret;
 };
 
 EventEmitter.listenerCount = function(emitter, type) {
@@ -16191,7 +16140,7 @@ function done(stream, er, data) {
   return stream.push(null);
 }
 },{"./_stream_duplex":90,"core-util-is":27,"inherits":31}],94:[function(require,module,exports){
-(function (process,global,setImmediate){
+(function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -16879,8 +16828,8 @@ Writable.prototype._destroy = function (err, cb) {
   this.end();
   cb(err);
 };
-}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
-},{"./_stream_duplex":90,"./internal/streams/destroy":96,"./internal/streams/stream":97,"_process":88,"core-util-is":27,"inherits":31,"process-nextick-args":87,"safe-buffer":102,"timers":107,"util-deprecate":108}],95:[function(require,module,exports){
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./_stream_duplex":90,"./internal/streams/destroy":96,"./internal/streams/stream":97,"_process":88,"core-util-is":27,"inherits":31,"process-nextick-args":87,"safe-buffer":102,"util-deprecate":107}],95:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -18016,85 +17965,6 @@ function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
 },{"safe-buffer":102}],107:[function(require,module,exports){
-(function (setImmediate,clearImmediate){
-var nextTick = require('process/browser.js').nextTick;
-var apply = Function.prototype.apply;
-var slice = Array.prototype.slice;
-var immediateIds = {};
-var nextImmediateId = 0;
-
-// DOM APIs, for completeness
-
-exports.setTimeout = function() {
-  return new Timeout(apply.call(setTimeout, window, arguments), clearTimeout);
-};
-exports.setInterval = function() {
-  return new Timeout(apply.call(setInterval, window, arguments), clearInterval);
-};
-exports.clearTimeout =
-exports.clearInterval = function(timeout) { timeout.close(); };
-
-function Timeout(id, clearFn) {
-  this._id = id;
-  this._clearFn = clearFn;
-}
-Timeout.prototype.unref = Timeout.prototype.ref = function() {};
-Timeout.prototype.close = function() {
-  this._clearFn.call(window, this._id);
-};
-
-// Does not start the time, just sets up the members needed.
-exports.enroll = function(item, msecs) {
-  clearTimeout(item._idleTimeoutId);
-  item._idleTimeout = msecs;
-};
-
-exports.unenroll = function(item) {
-  clearTimeout(item._idleTimeoutId);
-  item._idleTimeout = -1;
-};
-
-exports._unrefActive = exports.active = function(item) {
-  clearTimeout(item._idleTimeoutId);
-
-  var msecs = item._idleTimeout;
-  if (msecs >= 0) {
-    item._idleTimeoutId = setTimeout(function onTimeout() {
-      if (item._onTimeout)
-        item._onTimeout();
-    }, msecs);
-  }
-};
-
-// That's not how node.js implements it but the exposed api is the same.
-exports.setImmediate = typeof setImmediate === "function" ? setImmediate : function(fn) {
-  var id = nextImmediateId++;
-  var args = arguments.length < 2 ? false : slice.call(arguments, 1);
-
-  immediateIds[id] = true;
-
-  nextTick(function onNextTick() {
-    if (immediateIds[id]) {
-      // fn.call() is faster so we optimize for the common use-case
-      // @see http://jsperf.com/call-apply-segu
-      if (args) {
-        fn.apply(null, args);
-      } else {
-        fn.call(null);
-      }
-      // Prevent ids from leaking
-      exports.clearImmediate(id);
-    }
-  });
-
-  return id;
-};
-
-exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate : function(id) {
-  delete immediateIds[id];
-};
-}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
-},{"process/browser.js":88,"timers":107}],108:[function(require,module,exports){
 (function (global){
 
 /**
@@ -18165,7 +18035,7 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],109:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 (function (global){
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.default = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 "use strict";Object.defineProperty(exports,"__esModule",{value:!0});var _require=_dereq_("./spec/reference-implementation/lib/readable-stream"),ReadableStream=_require.ReadableStream,_require2=_dereq_("./spec/reference-implementation/lib/writable-stream"),WritableStream=_require2.WritableStream,ByteLengthQueuingStrategy=_dereq_("./spec/reference-implementation/lib/byte-length-queuing-strategy"),CountQueuingStrategy=_dereq_("./spec/reference-implementation/lib/count-queuing-strategy"),TransformStream=_dereq_("./spec/reference-implementation/lib/transform-stream").TransformStream;exports.ByteLengthQueuingStrategy=ByteLengthQueuingStrategy,exports.CountQueuingStrategy=CountQueuingStrategy,exports.TransformStream=TransformStream,exports.ReadableStream=ReadableStream,exports.WritableStream=WritableStream;var interfaces={ReadableStream:ReadableStream,WritableStream:WritableStream,ByteLengthQueuingStrategy:ByteLengthQueuingStrategy,CountQueuingStrategy:CountQueuingStrategy,TransformStream:TransformStream};exports.default=interfaces,"undefined"!=typeof window&&Object.assign(window,interfaces);
