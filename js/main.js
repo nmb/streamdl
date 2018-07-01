@@ -39,7 +39,7 @@ function mkdl(str, z){
         if (res.ok) {
           return res;
         } else {
-          throw new Error(res.statusText);
+          return Promise.reject(new Error(res.statusText));
         }
       })
       .then( function(res) {
